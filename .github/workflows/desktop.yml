@@ -1,0 +1,72 @@
+name: Windows standalone
+
+on:
+  push:
+    branches: [standalone]
+    tags: ['v*']
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'licenses/**'
+      - '*.sln'
+      - 'global.json'
+      - 'LICENSE'
+      - 'THIRD-PARTY-NOTICES.md'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    branches: [standalone]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build all projects
+        run: dotnet build TexturePacker.sln -c Release
+      - name: Verify image pixels and errors
+        run: dotnet run --project tests/TexturePacker.Core.Tests -c Release --no-build
+      - name: Verify desktop state and async interaction
+        run: dotnet run --project tests/TexturePacker.Desktop.Tests -c Release -r win-x64 --self-contained true
+      - name: Build portable Windows package
+        shell: pwsh
+        run: ./scripts/Publish-Windows.ps1
+      - name: Render and verify all desktop modes
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "$PWD/artifacts/portable/TexturePacker.exe" -ArgumentList '--smoke-test',"$PWD/artifacts/desktop-smoke" -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(60000)) { Stop-Process -Id $process.Id; throw 'Desktop smoke test timed out.' }
+          if ($process.ExitCode -ne 0) { Get-Content artifacts/desktop-smoke/failure.txt; throw 'Desktop smoke test failed.' }
+          Get-Content artifacts/desktop-smoke/result.json
+      - name: Save portable app and rendered verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: TexturePacker-win-x64
+          path: |
+            artifacts/TexturePacker-win-x64.zip
+            artifacts/SHA256SUMS.txt
+            artifacts/desktop-smoke/*.png
+            artifacts/desktop-smoke/result.json
+          retention-days: 14
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: TexturePacker-win-x64
+          path: release
+      - name: Publish Windows download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" release/TexturePacker-win-x64.zip release/SHA256SUMS.txt --repo "${{ github.repository }}" --title "Texture Packer ${{ github.ref_name }}" --generate-notes

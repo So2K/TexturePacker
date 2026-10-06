@@ -20,5 +20,10 @@ dist-ssr
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
+**/bin/
+**/obj/
+artifacts/
+**/test-results/
+**/playwright-report/
+*.user
 *.sw?

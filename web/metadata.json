@@ -1,0 +1,5 @@
+{
+  "name": "Texture Packer Pro",
+  "description": "A professional texture packing utility. Combine multiple texture maps into a single RGBA image (Channel Packing), create texture atlases, convert 16-bit TIFs to 8-bit PNG, or invert maps (Glossiness to Roughness, DirectX to OpenGL Normal Y).",
+  "requestFramePermissions": []
+}
