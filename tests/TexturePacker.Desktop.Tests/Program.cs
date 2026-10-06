@@ -103,6 +103,16 @@ internal static class Program
         Check(!vm.CanProcess, "Empty atlas disabled");
         vm.AtlasColumns = 2;
         vm.AtlasRows = 2;
+        await vm.LoadFilesAsync(new[] { red, green }, vm.Slots[2]);
+        Check(!vm.Slots[0].HasFile && !vm.Slots[1].HasFile &&
+              vm.Slots[2].Id == "atlas_2" && vm.Slots[2].FilePath == red &&
+              vm.Slots[3].Id == "atlas_3" && vm.Slots[3].FilePath == green,
+            "Targeted multi-file atlas drop fills consecutive cells from its target without changing earlier cells");
+        await vm.LoadFilesAsync(new[] { green, red }, vm.Slots[2]);
+        Check(!vm.Slots[0].HasFile && !vm.Slots[1].HasFile &&
+              vm.Slots[2].FilePath == green && vm.Slots[3].FilePath == red,
+            "Targeted multi-file atlas drop overwrites occupied consecutive cells");
+        vm.ClearCommand.Execute(null);
         await vm.LoadFilesAsync(new[] { red, green });
         var coordinateSlot = vm.Slots[1];
         Check(coordinateSlot.FilePath == green, "Multi-file atlas import fills empty slots");

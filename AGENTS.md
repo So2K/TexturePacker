@@ -4,7 +4,7 @@ Read `docs/COORDINATION.md`, current Git status and agent messages before signif
 
 `standalone` is the main development branch. Maintain the C# Windows app in `src/` and the web app in `web/` together. Changes to any texture operation must preserve equivalent semantics on both platforms and include meaningful pixel regression checks. The original web prototype remains in `typescript-legacy`.
 
-Use Microsoft's native WPF Fluent theme. Keep the desktop and web interfaces consistent: Segoe UI, dark neutral surfaces, one restrained blue accent, accessible controls and clear operation status. All processing is local; no API keys or remote image uploads.
+Preserve the ORIGINAL layout from `typescript-legacy` element-for-element: 56px global header; 380px left panel with five horizontal mode tabs, channel cards and process action; 48px preview toolbar and large viewport to the right. Do not add a navigation sidebar, third column, new headings or reposition controls. The user's explicit correction rejected the first redesigned layout. Apply Microsoft's Fluent/PowerToys materials to the original elements: Segoe UI, translucent neutral layers, subtle strokes, restrained accent, native Mica on Windows. Compare actual reference screenshots before delivery. All processing is local; no API keys or remote image uploads.
 
 The project is MIT licensed. Keep third-party notices and dependency licenses in distributions. Magick.NET is Apache-2.0 licensed. Do not substitute commercially restricted image dependencies.
 

@@ -59,23 +59,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _modeSlots[TextureMode.ChannelPacking] = new ObservableCollection<SlotViewModel>
         {
-            Slot("R", "Red channel", "Grayscale → R", Color.FromRgb(242, 123, 129), true),
-            Slot("G", "Green channel", "Grayscale → G", Color.FromRgb(125, 211, 152), true),
-            Slot("B", "Blue channel", "Grayscale → B", Color.FromRgb(129, 165, 246)),
-            Slot("A", "Alpha channel", "Grayscale → A", Color.FromRgb(178, 188, 205), true)
+            Slot("R", "Red Channel", "Grayscale → R", Color.FromRgb(242, 123, 129), true),
+            Slot("G", "Green Channel", "Grayscale → G", Color.FromRgb(125, 211, 152), true),
+            Slot("B", "Blue Channel", "Grayscale → B", Color.FromRgb(129, 165, 246)),
+            Slot("A", "Alpha Channel", "Grayscale → A", Color.FromRgb(178, 188, 205), true)
         };
         _modeSlots[TextureMode.CombineAlpha] = new ObservableCollection<SlotViewModel>
         {
-            Slot("base", "Base texture", "Color texture → RGB", Color.FromRgb(153, 145, 245)),
-            Slot("alpha", "Alpha mask", "White = opaque · Black = transparent", Color.FromRgb(178, 188, 205), true)
+            Slot("base", "Base Texture (RGB)", "Color texture → RGB", Color.FromRgb(153, 145, 245)),
+            Slot("alpha", "Alpha Mask (Grayscale)", "White = opaque · Black = transparent", Color.FromRgb(178, 188, 205), true)
         };
         _modeSlots[TextureMode.Convert16To8] = new ObservableCollection<SlotViewModel>
         {
-            Slot("tif", "Source TIFF texture", "Select a .tif or .tiff image", Color.FromRgb(125, 211, 152), allowFallback: false)
+            Slot("tif", "Source 16-bit TIF", "Select a .tif or .tiff image", Color.FromRgb(125, 211, 152))
         };
         _modeSlots[TextureMode.InvertMap] = new ObservableCollection<SlotViewModel>
         {
-            Slot("invert_src", "Source texture", "Gloss, roughness or normal map", Color.FromRgb(234, 189, 118), allowFallback: false)
+            Slot("invert_src", "Source Texture Map (Gloss / Rough / Normal)", "Gloss, roughness or normal map", Color.FromRgb(234, 189, 118))
         };
         _modeSlots[TextureMode.Atlas] = [];
         RebuildAtlasSlots();
@@ -100,6 +100,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     }
     public ObservableCollection<SlotViewModel> Slots => _modeSlots[_selectedMode.Mode];
     public ImageSource? Preview => _preview;
+    public ImageSource? SourcePreview => Slots.FirstOrDefault(s => s.Preview is not null)?.Preview;
+    public bool HasViewportTexture => HasResult || (IsInvertMode && SourcePreview is not null);
     public bool HasResult => _result is not null;
     public string ResultInfo => _result is null ? "No result yet" : $"{_result.Width:N0} × {_result.Height:N0} · RGBA · 8-bit PNG";
     public string Status { get => _status; private set => SetProperty(ref _status, value); }
@@ -177,9 +179,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         var available = Slots.Where(s => !s.HasFile && !s.IsLoading).ToList();
         if (startSlot is not null)
         {
-            if (!Slots.Contains(startSlot)) return;
-            available.Remove(startSlot);
-            available.Insert(0, startSlot);
+            var startIndex = Slots.IndexOf(startSlot);
+            if (startIndex < 0) return;
+            if (IsAtlasMode)
+            {
+                // A cell drop follows the original atlas order, replacing occupied cells after its target.
+                available = Slots.Skip(startIndex).Take(sources.Length).ToList();
+            }
+            else
+            {
+                available.Remove(startSlot);
+                available.Insert(0, startSlot);
+            }
         }
         else if (available.Count == 0 && Slots.Count == 1)
         {
@@ -212,7 +223,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 if (item.Slot.Id == "tif" && Path.GetExtension(path).ToLowerInvariant() is not (".tif" or ".tiff"))
                     throw new TextureProcessingException("The 16-bit converter requires a .tif or .tiff file.");
                 if (!File.Exists(path)) throw new FileNotFoundException("The selected image no longer exists.", path);
-                var data = await _processor.CreatePreviewAsync(path, 256, item.Load.Token);
+                var data = await _processor.CreatePreviewAsync(path, 512, item.Load.Token);
                 item.Load.Token.ThrowIfCancellationRequested();
                 var preview = ImageLoader.FromPng(data.PngBytes);
                 if (item.Slot.CompleteLoad(item.Load.Version, path, data, preview))
@@ -241,7 +252,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         Status = completed > 0
             ? $"Loaded {completed} {(completed == 1 ? "image" : "images")}. " +
                 (HasError ? "Some images could not be loaded. Check the highlighted inputs." :
-                ignoredCount > 0 ? $"{ignoredCount} skipped because there are no more empty inputs." : "Ready to process.")
+                ignoredCount > 0 ? $"{ignoredCount} skipped because there are no more available inputs." : "Ready to process.")
             : HasError ? "Some images could not be loaded. Check the highlighted inputs." : "Image loading canceled.";
     }
 
@@ -294,6 +305,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Preview));
             OnPropertyChanged(nameof(HasResult));
             OnPropertyChanged(nameof(ResultInfo));
+            NotifyViewportProperties();
             Status = $"Done. {result.Width:N0} × {result.Height:N0} PNG is ready to save.";
         }
         catch (OperationCanceledException) { Status = "Processing canceled."; }
@@ -361,6 +373,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _inputRevision++;
         InvalidateResult();
+        NotifyViewportProperties();
         OnPropertyChanged(nameof(InputSummary));
         OnPropertyChanged(nameof(CanProcess));
         NotifyCommands();
@@ -381,7 +394,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(HasResult));
         OnPropertyChanged(nameof(ResultInfo));
+        NotifyViewportProperties();
         SaveCommand.NotifyCanExecuteChanged();
+    }
+
+    private void NotifyViewportProperties()
+    {
+        OnPropertyChanged(nameof(SourcePreview));
+        OnPropertyChanged(nameof(HasViewportTexture));
     }
 
     private void SetInvert(ref bool field, bool value, string propertyName)

@@ -6,26 +6,26 @@ import { previewInWorker, processInWorker } from './utils/process-worker';
 import './index.css';
 
 const modes = [
-  { id: AppMode.ChannelPacking, icon: '▦', title: 'RGBA channels', description: 'Combine grayscale maps into one RGBA texture.', note: 'The red component of each source fills its output channel. Sources resize to the smallest width and height.' },
-  { id: AppMode.CombineAlpha, icon: '◩', title: 'Add alpha', description: 'Combine a color texture with an alpha mask.', note: 'The base texture sets the output size. The mask’s red component becomes alpha; its size adjusts to the base.' },
-  { id: AppMode.Convert16to8, icon: '⇩', title: 'TIFF 16 → 8', description: 'Convert a high bit depth TIFF to an 8-bit PNG.', note: 'Converts integer 16-bit samples to 8-bit values. The original image dimensions are preserved.' },
-  { id: AppMode.Atlas, icon: '▤', title: 'Texture atlas', description: 'Arrange textures in a regular grid.', note: 'The first loaded slot sets the cell size. Empty cells stay opaque black. Slots are ordered from left to right.' },
-  { id: AppMode.InvertMap, icon: '◐', title: 'Invert channels', description: 'Convert roughness, gloss and normal maps.', note: 'Each selected channel becomes 255 − value. All other channels and the image dimensions are preserved.' },
+  { id: AppMode.ChannelPacking, icon: '▦', title: 'Channels', description: 'Combine grayscale maps into one RGBA texture.', note: 'The red component of each source fills its output channel. Sources resize to the smallest width and height.' },
+  { id: AppMode.CombineAlpha, icon: '◩', title: '+ Alpha', description: 'Combine a color texture with an alpha mask.', note: 'The base texture sets the output size. The mask’s red component becomes alpha; its size adjusts to the base.' },
+  { id: AppMode.Convert16to8, icon: '⇩', title: 'TIF 16→8', description: 'Convert a high bit depth TIFF to an 8-bit PNG.', note: 'Converts integer 16-bit samples to 8-bit values. The original image dimensions are preserved.' },
+  { id: AppMode.Atlas, icon: '▤', title: 'Atlas', description: 'Arrange textures in a regular grid.', note: 'The first loaded slot sets the cell size. Empty cells stay opaque black. Slots are ordered from left to right.' },
+  { id: AppMode.InvertMap, icon: '◐', title: 'Gloss ⇄ Rough', description: 'Convert roughness, gloss and normal maps.', note: 'Each selected channel becomes 255 − value. All other channels and the image dimensions are preserved.' },
 ] as const;
 const slot = (id: string, label: string, fallback: FallbackColor = 'black', colorClass = ''): ChannelState => ({ id, label, fallback, colorClass, file: null, previewUrl: null });
 const atlas = (cols: number, rows: number) => Array.from({ length: cols * rows }, (_, index) => slot(`atlas_${index}`, `Slot ${index + 1}`));
 const initial = (): Record<AppMode, ChannelState[]> => ({
-  [AppMode.ChannelPacking]: [slot('R', 'Red channel', 'white', 'red'), slot('G', 'Green channel', 'white', 'green'), slot('B', 'Blue channel', 'black', 'blue'), slot('A', 'Alpha channel', 'white')],
-  [AppMode.CombineAlpha]: [slot('base', 'Base texture · RGB'), slot('alpha', 'Alpha mask', 'white')],
-  [AppMode.Convert16to8]: [slot('tif', 'Source TIFF')],
+  [AppMode.ChannelPacking]: [slot('R', 'Red Channel', 'white', 'red'), slot('G', 'Green Channel', 'white', 'green'), slot('B', 'Blue Channel', 'black', 'blue'), slot('A', 'Alpha Channel', 'white')],
+  [AppMode.CombineAlpha]: [slot('base', 'Base Texture (RGB)'), slot('alpha', 'Alpha Mask (Grayscale)', 'white')],
+  [AppMode.Convert16to8]: [slot('tif', 'Source 16-bit TIF')],
   [AppMode.Atlas]: atlas(4, 4),
-  [AppMode.InvertMap]: [slot('invert_src', 'Source texture')],
+  [AppMode.InvertMap]: [slot('invert_src', 'Source Texture Map (Gloss / Rough / Normal)')],
 });
 const presets: { title: string; options: NonNullable<PackOptions['invertChannels']> }[] = [
-  { title: 'Gloss ⇄ rough', options: { r: true, g: true, b: true, a: false } },
-  { title: 'Flip normal Y', options: { r: false, g: true, b: false, a: false } },
-  { title: 'Invert alpha', options: { r: false, g: false, b: false, a: true } },
-  { title: 'Invert all', options: { r: true, g: true, b: true, a: true } },
+  { title: 'Gloss ⇄ Rough', options: { r: true, g: true, b: true, a: false } },
+  { title: 'Flip Normal Y', options: { r: false, g: true, b: false, a: false } },
+  { title: 'Invert Alpha', options: { r: false, g: false, b: false, a: true } },
+  { title: 'Invert All', options: { r: true, g: true, b: true, a: true } },
 ];
 
 export default function App() {
@@ -48,7 +48,6 @@ export default function App() {
   const dragDepth = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const active = states[mode];
-  const info = modes.find(item => item.id === mode)!;
   const loaded = active.filter(item => item.file).length;
   const release = useCallback((url: string | null) => {
     if (url && urls.current.delete(url)) URL.revokeObjectURL(url);
@@ -178,13 +177,19 @@ export default function App() {
     const shortcut = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const key = event.key.toLowerCase();
+      if (result && ['+', '=', '-', '0'].includes(key)) {
+        event.preventDefault();
+        if (key === '0') setZoom('fit');
+        else if (key === '-') setZoom(previous => previous === '4' ? '2' : previous === '2' ? '1' : 'fit');
+        else setZoom(previous => previous === 'fit' ? '1' : previous === '1' ? '2' : '4');
+      }
       if (key === 's') { event.preventDefault(); if (result && !busy) download(); }
       if (key === 'enter') { event.preventDefault(); if (canProcess) void process(); }
       if (key === 'o') {
         event.preventDefault();
         if (!processing) {
           const target = active.find(item => !item.file) ?? active[0];
-          document.querySelector<HTMLInputElement>(`[data-slot="${target.id}"] input[type="file"]`)?.click();
+          (document.querySelector<HTMLInputElement>(`[data-slot="${target.id}"] input[type="file"]`) ?? document.querySelector<HTMLInputElement>('[aria-label="Atlas texture file"]'))?.click();
         }
       }
     };
@@ -198,19 +203,37 @@ export default function App() {
     onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
     onDropCapture={() => { dragDepth.current = 0; setDragging(false); }}
     onDrop={event => { event.preventDefault(); if (processing) return; const empty = active.filter(item => !item.file); Array.from(event.dataTransfer.files).slice(0, empty.length).forEach((file, index) => void updateFile(empty[index].id, file)); }}>
-    <header className="app-header"><div className="brand-mark" aria-hidden="true">▦</div><strong>Texture Packer</strong><span className="edition">Web</span><div className="header-links"><a href="https://github.com/So2K/TexturePacker/releases/latest/download/TexturePacker-win-x64.zip" target="_blank" rel="noreferrer">↓ Download for Windows</a><a className="github-link" href="https://github.com/So2K/TexturePacker" target="_blank" rel="noreferrer">GitHub ↗</a></div></header>
+    <header className="app-header"><div className="brand"><div className="brand-mark">TX</div><h1>Texture Packer <span>Pro</span></h1></div><span className="header-caption">High Bit-Depth Utility</span></header>
     <div className="workspace">
-      <aside className="navigation"><div className="nav-caption">TEXTURE TOOLS</div><nav aria-label="Texture tools">{modes.map(item => <button key={item.id} className={mode === item.id ? 'selected' : ''} aria-current={mode === item.id ? 'page' : undefined} disabled={processing} onClick={() => { invalidate(); setMode(item.id); }}><span aria-hidden="true">{item.icon}</span>{item.title}</button>)}</nav><div className="nav-footer"><span className="privacy-dot" />Processed on your device<p>Free and open source · MIT</p></div></aside>
-      <main className="source-panel"><div className="section-heading"><div><h1>{info.title}</h1><p>{info.description}</p></div></div>
-        {mode === AppMode.Atlas && <section className="settings-card"><h2>Atlas layout</h2><div className="grid-settings">{(['cols', 'rows'] as const).map(key => <label key={key}>{key === 'cols' ? 'Columns' : 'Rows'}<input type="number" min="1" max="20" value={gridInputs[key]} disabled={processing} onChange={event => setGridInputs(previous => ({ ...previous, [key]: event.target.value }))} onBlur={() => changeGrid(Number(gridInputs.cols), Number(gridInputs.rows))} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); changeGrid(Number(gridInputs.cols), Number(gridInputs.rows)); } }} /></label>)}</div><div className="preset-row">{[[2,2],[3,3],[4,4],[2,3]].map(([cols, rows]) => <button key={`${cols}x${rows}`} aria-pressed={grid.cols === cols && grid.rows === rows} disabled={processing} onClick={() => changeGrid(cols, rows)}>{cols} × {rows}</button>)}</div></section>}
-        {mode === AppMode.InvertMap && <section className="settings-card"><h2>Conversion presets</h2><div className="preset-grid">{presets.map(preset => <button key={preset.title} aria-pressed={Object.entries(preset.options).every(([key,value]) => invert[key as keyof typeof invert] === value)} disabled={processing} onClick={() => changeInvert(preset.options)}>{preset.title}</button>)}</div><h2 className="channel-heading">Channels to invert</h2><div className="invert-channels">{(['r','g','b','a'] as const).map((key, index) => <label key={key}><input type="checkbox" checked={invert[key]} disabled={processing} onChange={event => changeInvert({ ...invert, [key]: event.target.checked })} />{['Red','Green','Blue','Alpha'][index]}</label>)}</div></section>}
-        {mode === AppMode.Atlas ? <section className="settings-card"><div className="section-row"><h2>Texture slots</h2><span>{loaded} / {active.length} filled</span></div><p className="settings-note">Click a cell to choose a texture, or drop multiple files to fill cells in order.</p><div className="atlas-scroll"><div className="atlas-grid" style={{ minWidth: grid.cols * 48, gridTemplateColumns: `repeat(${grid.cols}, minmax(0,1fr))` }}>{active.map((item, index) => <div className="atlas-cell" data-slot={item.id} key={item.id} onDragOver={event => { event.preventDefault(); event.stopPropagation(); }} onDrop={event => { event.preventDefault(); event.stopPropagation(); if (!processing) Array.from(event.dataTransfer.files).slice(0, active.length-index).forEach((file, offset) => void updateFile(active[index + offset].id, file)); }}><label className={processing ? 'disabled' : ''} title={item.file?.name ?? `Choose slot ${index + 1}`}><input type="file" accept={IMAGE_ACCEPT} disabled={processing} aria-label={`Slot ${index + 1} file`} onChange={event => { if (event.target.files?.[0]) void updateFile(item.id,event.target.files[0]); event.target.value = ''; }} />{item.previewUrl ? <img src={item.previewUrl} alt={`Slot ${index + 1}`} /> : <span>{index + 1}<small>＋</small></span>}</label>{item.file && <button className="cell-remove" disabled={processing} aria-label={`Remove slot ${index + 1}`} onClick={() => void updateFile(item.id,null)}>×</button>}</div>)}</div></div></section> : <div className="source-list">{active.map(item => <ChannelInput key={item.id} channel={item} onFileChange={updateFile} onFallbackChange={updateFallback} allowFallback={mode === AppMode.ChannelPacking || mode === AppMode.CombineAlpha} tiffOnly={mode === AppMode.Convert16to8} disabled={processing} />)}</div>}
-        <div className="mode-note"><span aria-hidden="true">ⓘ</span><p>{info.note}</p></div><button className="clear-button" disabled={processing || (!loaded && !pending)} onClick={clear}>Clear sources</button>
+      <aside className="source-panel">
+        <nav className="mode-tabs" aria-label="Texture tools">{modes.map(item => <button key={item.id} aria-pressed={mode === item.id} disabled={processing} onClick={() => { invalidate(); setMode(item.id); }}>{item.title}</button>)}</nav>
+        <div className="input-content">
+          {mode === AppMode.Atlas ? <div className="atlas-settings">
+            <section><h2>Grid Size</h2><div className="grid-settings">{(['cols','rows'] as const).map(key => <label key={key}>{key === 'cols' ? 'Columns' : 'Rows'}<input type="number" min="1" max="20" value={gridInputs[key]} disabled={processing} onChange={event => setGridInputs(previous => ({ ...previous, [key]: event.target.value }))} onBlur={() => changeGrid(Number(gridInputs.cols),Number(gridInputs.rows))} onKeyDown={event => { if(event.key === 'Enter') { event.preventDefault(); changeGrid(Number(gridInputs.cols),Number(gridInputs.rows)); } }} /></label>)}</div><div className="grid-presets">{[[2,2],[3,3],[4,4],[2,3]].map(([cols,rows]) => <button key={`${cols}x${rows}`} aria-pressed={grid.cols === cols && grid.rows === rows} disabled={processing} onClick={() => changeGrid(cols,rows)}>{cols}x{rows}</button>)}</div></section>
+            <div className="information-pane"><p>Drag and drop textures directly onto the grid cells in the viewport to the right.</p></div>
+            <button className="clear-slots" disabled={processing} onClick={clear}>Clear All Slots</button>
+            <input className="visually-hidden" type="file" accept={IMAGE_ACCEPT} aria-label="Atlas texture file" disabled={processing} onChange={event => { const target=active.find(item=>!item.file)??active[0]; if(event.target.files?.[0]) void updateFile(target.id,event.target.files[0]); event.target.value=''; }} />
+          </div> : <>
+            {mode === AppMode.InvertMap && <div className="inversion-settings">
+              <section><h2>Presets</h2><div className="invert-presets">{presets.map((preset,index) => <button key={preset.title} aria-pressed={Object.entries(preset.options).every(([key,value]) => invert[key as keyof typeof invert] === value)} disabled={processing} onClick={() => changeInvert(preset.options)}><strong>{preset.title}</strong><span>{['RGB Invert (1 - x)','DirectX ⇄ OpenGL (G)','Alpha Mask (1 - A)','Full RGBA Inversion'][index]}</span></button>)}</div></section>
+              <section><div className="channel-heading"><h2>Channels to Invert</h2><span>255 - X</span></div><div className="invert-channels">{(['r','g','b','a'] as const).map((key,index) => <label key={key} className={invert[key]?'checked':''}><input type="checkbox" checked={invert[key]} disabled={processing} onChange={event=>changeInvert({...invert,[key]:event.target.checked})}/><i className={['red','green','blue','alpha'][index]}/>{['Red','Green','Blue','Alpha'][index]}</label>)}</div></section>
+              <div className="information-pane inversion-note"><p>Inverts pixel values using <code>255 - Value</code> (One-Minus). Perfect for converting Glossiness to Roughness, Smoothness to Roughness, or flipping DirectX/OpenGL Normal map Y green channel.</p></div>
+            </div>}
+            <div className="source-list">{active.map(item=><ChannelInput key={item.id} channel={item} onFileChange={updateFile} onFallbackChange={updateFallback} tiffOnly={mode===AppMode.Convert16to8} disabled={processing}/>)}</div>
+          </>}
+        </div>
+        <div className="process-actions"><button className="primary-button" aria-label="Process textures" disabled={!canProcess} onClick={()=>void process()}>{processing?<><span className="spinner"/>Processing…</>:mode===AppMode.InvertMap?'Invert / Convert Map':'Process Textures'}</button>{processing&&<button className="cancel-button" onClick={cancelProcess}>Cancel</button>}{pending>0&&mode!==AppMode.Atlas&&<button className="cancel-button" onClick={clear}>Clear sources</button>}</div>
+      </aside>
+      <main className="preview-panel">
+        <div className="preview-toolbar"><div className="viewport-status"><i className={processing?'working':''}/><span>Viewport 1.0</span><span className="visually-hidden" aria-live="polite">{pending?'Loading sources…':`${loaded} sources loaded`}</span></div><div className="toolbar-actions">{result&&<><span className="output-size">{result.width} x {result.height} px</span><button className="download-button" disabled={busy} onClick={download}>Download Output</button></>}</div></div>
+        <div className="viewport-area" role="region" aria-label="Texture preview. Ctrl+Plus and Ctrl+Minus zoom. Ctrl+0 fits the image."><div className={`checker-preview ${zoom!=='fit'&&result?'zoomed':''} ${mode===AppMode.Atlas&&!result?'atlas-preview':''}`}>
+          {result?<img className={`output-image ${zoom!=='fit'?'zoomed':''}`} style={zoom!=='fit'?{width:result.width*Number(zoom),height:result.height*Number(zoom)}:undefined} src={result.url} alt="Processed texture"/>:mode===AppMode.Atlas?<div className="atlas-grid" style={{gridTemplateColumns:`repeat(${grid.cols},minmax(0,1fr))`,gridTemplateRows:`repeat(${grid.rows},minmax(0,1fr))`,height:`calc(min(70vh,70vw) * ${grid.rows/grid.cols})`}}>
+            {active.map((item,index)=><div className="atlas-cell" data-slot={item.id} key={item.id} onDragOver={event=>{event.preventDefault();event.stopPropagation();}} onDrop={event=>{event.preventDefault();event.stopPropagation();if(!processing)Array.from(event.dataTransfer.files).slice(0,active.length-index).forEach((file,offset)=>void updateFile(active[index+offset].id,file));}}><label title={item.file?.name??`Choose slot ${index+1}`}><input type="file" accept={IMAGE_ACCEPT} disabled={processing} aria-label={`Slot ${index+1} file`} onChange={event=>{if(event.target.files?.[0])void updateFile(item.id,event.target.files[0]);event.target.value='';}}/>{item.previewUrl?<img src={item.previewUrl} alt={`Slot ${index+1}`}/>:<span>{index+1}</span>}</label>{item.file&&<button className="cell-remove" disabled={processing} aria-label={`Remove slot ${index+1}`} onClick={()=>void updateFile(item.id,null)}>×</button>}</div>)}
+          </div>:mode===AppMode.InvertMap&&sourcePreview?<div className="source-preview"><img src={sourcePreview} alt="Source Preview"/><span>Source Texture (Click Process to Invert)</span></div>:<div className="empty-preview"><svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 002 2v12a2 2 0 002 2z" strokeWidth="1"/></svg><p>Empty Workspace</p></div>}
+        </div>{processing&&<div className="processing-overlay" role="status"><span className="spinner"/>Processing textures…</div>}</div>
+        {error&&<div className="error-message" role="alert">{error}</div>}
       </main>
-      <section className="preview-panel" aria-label="Output preview"><div className="preview-toolbar"><h2>{result ? 'Output preview' : 'Preview'}</h2><select aria-label="Preview zoom" value={zoom} onChange={event => setZoom(event.target.value)}><option value="fit">Fit</option><option value="1">100%</option><option value="2">200%</option><option value="4">400%</option></select><span>{result ? `${result.width} × ${result.height} px` : 'PNG · 8-bit RGBA'}</span></div><div className={`preview-viewport ${zoom !== 'fit' && result ? 'zoomed' : ''}`}>{result ? <img className={`output-image ${zoom !== 'fit' ? 'zoomed' : ''}`} style={zoom !== 'fit' ? { width: result.width * Number(zoom), height: result.height * Number(zoom) } : undefined} src={result.url} alt="Processed texture" /> : sourcePreview && mode !== AppMode.Atlas ? <div className="source-preview"><img src={sourcePreview} alt="Source texture preview" /><span>Source · process to preview output</span></div> : <div className="empty-preview"><div className="empty-icon" aria-hidden="true">▦</div><h3>Your texture, ready to go</h3><p>Add sources and process to see the result.</p><span>PNG · JPEG · TIFF · BMP · TGA · WebP</span></div>}{processing && <div className="processing-overlay" role="status"><span className="spinner" />Processing textures…</div>}</div>
-        <div className="output-actions">{error && <div className="error-message" role="alert">{error}</div>}<div className="action-status" aria-live="polite">{processing ? 'Processing textures…' : pending ? 'Loading sources…' : result ? 'Ready to export' : `${loaded} source${loaded === 1 ? '' : 's'} loaded`}</div><div className="action-buttons">{processing && <button className="secondary-button" onClick={cancelProcess}>Cancel</button>}<button className="primary-button" disabled={!canProcess} onClick={() => void process()}>{processing ? 'Processing…' : 'Process textures'}</button><button className="secondary-button" disabled={!result || busy} onClick={download}>↓ Export PNG</button></div><p className="output-note">Your textures stay on your device.</p></div>
-      </section>
     </div>
-    {dragging && <div className="drop-overlay"><div>Drop textures to fill empty slots</div></div>}
+    {dragging&&<div className="drop-overlay"><div>Drop anywhere to fill empty slots</div></div>}
   </div>;
 }

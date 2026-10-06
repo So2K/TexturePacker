@@ -14,9 +14,9 @@ public partial class App : Application
             MessageBox.Show("Texture Packer encountered an unexpected error. Details were saved to TexturePacker-error.log in your temporary folder.", "Texture Packer", MessageBoxButton.OK, MessageBoxImage.Error);
             args.Handled = true;
         };
-        if (e.Args.Length == 2 && e.Args[0] == "--smoke-test")
+        if (e.Args.Length is 2 or 3 && e.Args[0] == "--smoke-test")
         {
-            try { await DesktopSmoke.RunAsync(e.Args[1]); Shutdown(0); }
+            try { await DesktopSmoke.RunAsync(e.Args[1], e.Args.ElementAtOrDefault(2)); Shutdown(0); }
             catch (Exception ex)
             {
                 Directory.CreateDirectory(e.Args[1]);

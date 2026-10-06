@@ -2,6 +2,8 @@
 
 A local texture utility in two maintained versions: a native C# Windows app with Microsoft's Fluent design, and a browser app with the same five operations. Free to use, modify and redistribute under the MIT license.
 
+Both versions preserve the original Texture Packer layout: top header, horizontal mode tabs inside the 380px source panel, large 2:1 texture wells and the viewport on the right. The Windows app uses Microsoft's native Mica backdrop with translucent content layers; the web app uses matching Fluent surfaces. The five-mode layout is checked against the original at 1360×840 and 1440×900.
+
 [Open the web app](https://so2k.github.io/TexturePacker/) · [Download for Windows x64](https://github.com/So2K/TexturePacker/releases/latest/download/TexturePacker-win-x64.zip)
 
 ![Texture Packer for Windows](docs/desktop.png)

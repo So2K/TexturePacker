@@ -4,12 +4,15 @@
              ThemeMode="Dark">
   <Application.Resources>
     <BooleanToVisibilityConverter x:Key="BoolVisibility" />
-    <SolidColorBrush x:Key="CanvasBrush" Color="#15171C" />
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#1D2026" />
-    <SolidColorBrush x:Key="CardBrush" Color="#252830" />
-    <SolidColorBrush x:Key="BorderBrush" Color="#363A44" />
-    <SolidColorBrush x:Key="MutedBrush" Color="#A3ABBA" />
-    <SolidColorBrush x:Key="AccentBrush" Color="#70AFFF" />
+    <SolidColorBrush x:Key="CanvasBrush" Color="#202127" />
+    <SolidColorBrush x:Key="HeaderBrush" Color="#09FFFFFF" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#06FFFFFF" />
+    <SolidColorBrush x:Key="CardBrush" Color="#06FFFFFF" />
+    <SolidColorBrush x:Key="WellBrush" Color="#30000000" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#17FFFFFF" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#AFB3C2" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#9BA9EF" />
+    <SolidColorBrush x:Key="SelectedBrush" Color="#40798DE2" />
     <Style x:Key="Caption" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
       <Setter Property="FontSize" Value="12" />
@@ -44,8 +47,8 @@
     <DrawingBrush x:Key="CheckerBrush" TileMode="Tile" Viewport="0,0,24,24" ViewportUnits="Absolute" Stretch="None">
       <DrawingBrush.Drawing>
         <DrawingGroup>
-          <GeometryDrawing Brush="#20242B"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,24,24" /></GeometryDrawing.Geometry></GeometryDrawing>
-          <GeometryDrawing Brush="#2B3039"><GeometryDrawing.Geometry><GeometryGroup><RectangleGeometry Rect="0,0,12,12" /><RectangleGeometry Rect="12,12,12,12" /></GeometryGroup></GeometryDrawing.Geometry></GeometryDrawing>
+          <GeometryDrawing Brush="#03FFFFFF"><GeometryDrawing.Geometry><RectangleGeometry Rect="0,0,24,24" /></GeometryDrawing.Geometry></GeometryDrawing>
+          <GeometryDrawing Brush="#0BFFFFFF"><GeometryDrawing.Geometry><GeometryGroup><RectangleGeometry Rect="0,0,12,12" /><RectangleGeometry Rect="12,12,12,12" /></GeometryGroup></GeometryDrawing.Geometry></GeometryDrawing>
         </DrawingGroup>
       </DrawingBrush.Drawing>
     </DrawingBrush>
